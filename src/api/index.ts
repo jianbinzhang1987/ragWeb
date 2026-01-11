@@ -7,6 +7,9 @@ const api = axios.create({
   timeout: 30000
 })
 
+const API_BASE_URL = '/api/v1'
+
+
 interface ApiResponse<T> {
   code: number
   message: string
@@ -179,6 +182,118 @@ export const chatApi = {
         similarity: c.score,
         page: 1
       })) || []
+    }
+  },
+
+  sendMessageStream: (
+    request: ChatRequest,
+    onMessage: (chunk: string) => void,
+    onDone: () => void,
+    onError: (error: string) => void
+  ) => {
+    const payload = {
+      collection: request.knowledgeBaseId || (request.knowledgeBaseIds?.[0] || 'default'),
+      collectionIds: request.knowledgeBaseIds,
+      question: request.message
+    }
+
+    const controller = new AbortController()
+
+    fetch(API_BASE_URL + '/chat/stream', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error('Stream request failed')
+      }
+
+      const reader = response.body?.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let currentEvent = ''
+      let currentDataLines: string[] = []
+
+      const flushEvent = () => {
+        if (!currentEvent) {
+          currentDataLines = []
+          return false
+        }
+
+        const data = currentDataLines.join('\n')
+
+        if (currentEvent === 'message') {
+          if (data) {
+            onMessage(data)
+          }
+        } else if (currentEvent === 'done') {
+          onDone()
+          return true
+        } else if (currentEvent === 'error') {
+          onError(data)
+          return true
+        }
+
+        currentEvent = ''
+        currentDataLines = []
+        return false
+      }
+
+      function read(): any {
+        return reader?.read().then(({ done, value }) => {
+          if (done) {
+            if (flushEvent()) {
+              return
+            }
+            onDone()
+            return
+          }
+
+          buffer += decoder.decode(value, { stream: true })
+          const lines = buffer.split('\n')
+
+          // Keep the last incomplete line in buffer
+          buffer = lines.pop() || ''
+
+          for (const rawLine of lines) {
+            const line = rawLine.replace(/\r$/, '')
+
+            if (line === '') {
+              if (flushEvent()) {
+                return
+              }
+              continue
+            }
+
+            if (line.startsWith('event:')) {
+              currentEvent = line.substring(6).trim()
+            } else if (line.startsWith('data:')) {
+              let data = line.substring(5)
+              if (data.startsWith(' ')) {
+                data = data.slice(1)
+              }
+              currentDataLines.push(data)
+            }
+          }
+
+          return read()
+        })
+      }
+
+      read().catch((error) => {
+        if (controller.signal.aborted) return
+        onError(error.message || 'Stream read failed')
+      })
+    }).catch(error => {
+      if (controller.signal.aborted || error?.name === 'AbortError') return
+      onError(error.message)
+    })
+
+    return {
+      abort: () => controller.abort()
     }
   }
 }

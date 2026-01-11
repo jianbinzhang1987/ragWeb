@@ -6,7 +6,7 @@
     <div class="main-content">
       <ChatArea :messages="messages" :loading="chatLoading" :disabled="!selectedKnowledgeBase"
         :active-kb-ids="sessionKbIds" :available-kbs="knowledgeBases" @update:active-kb-ids="val => sessionKbIds = val"
-        @send-message="handleSendMessage" />
+        @send-message="handleSendMessage" @pause-stream="handlePauseStream" />
 
       <KnowledgePanel :knowledge-base-id="selectedKnowledgeBase" :files="files" :total="paging.total"
         :current-page="paging.page" :page-size="paging.size" @file-uploaded="handleFileUploaded"
@@ -31,6 +31,7 @@ const sessionKbIds = ref<string[]>([])
 const files = ref<FileItem[]>([])
 const messages = ref<Message[]>([])
 const chatLoading = ref(false)
+const streamController = ref<{ abort: () => void } | null>(null)
 
 const loadKnowledgeBases = async () => {
   try {
@@ -115,28 +116,59 @@ const handleSendMessage = async (content: string) => {
   messages.value.push(userMessage)
   chatLoading.value = true
 
-  try {
-    const response = await chatApi.sendMessage({
-      knowledgeBaseId: selectedKnowledgeBase.value, // Keep for legacy/logging
-      knowledgeBaseIds: sessionKbIds.value, // New field
+  // Create AI message placeholder
+  const aiMessage: Message = {
+    id: generateId(),
+    type: 'ai',
+    content: '',
+    timestamp: new Date().toISOString(),
+    sources: []
+  }
+  messages.value.push(aiMessage)
+  
+  // Get the index of the AI message for reactive updates
+  const aiMessageIndex = messages.value.length - 1
+
+  // Use streaming API
+  streamController.value = chatApi.sendMessageStream(
+    {
+      knowledgeBaseId: selectedKnowledgeBase.value,
+      knowledgeBaseIds: sessionKbIds.value,
       message: content
-    })
-
-    const aiMessage: Message = {
-      id: generateId(),
-      type: 'ai',
-      content: response.message,
-      timestamp: new Date().toISOString(),
-      sources: response.sources
+    },
+    (chunk: string) => {
+      // Trigger Vue reactivity by updating the array element
+      messages.value[aiMessageIndex] = {
+        ...messages.value[aiMessageIndex],
+        content: messages.value[aiMessageIndex].content + chunk
+      }
+    },
+    () => {
+      // Stream completed
+      chatLoading.value = false
+      streamController.value = null
+    },
+    (error: string) => {
+      // Stream error
+      console.error('流式响应失败:', error)
+      messages.value[aiMessageIndex] = {
+        ...messages.value[aiMessageIndex],
+        content: '抱歉，回答生成失败: ' + error
+      }
+      chatLoading.value = false
+      streamController.value = null
     }
+  )
+}
 
-    messages.value.push(aiMessage)
-  } catch (error) {
-    console.error('发送消息失败:', error)
-  } finally {
+const handlePauseStream = () => {
+  if (streamController.value) {
+    streamController.value.abort()
+    streamController.value = null
     chatLoading.value = false
   }
 }
+
 
 const handleFileUploaded = async () => {
   if (selectedKnowledgeBase.value) {

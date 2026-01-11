@@ -66,6 +66,14 @@
         <div class="message-avatar">
           <span v-if="message.type === 'user'">👤</span>
           <span v-else>🤖</span>
+          <div
+            v-if="message.type === 'ai' && shouldShowInlineLoading(message)"
+            class="typing-bubble"
+          >
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
         </div>
 
         <div class="message-content">
@@ -114,7 +122,8 @@
         </div>
       </div>
 
-      <div v-if="loading" class="message-wrapper ai">
+      <!-- Only show loading when no streaming message exists -->
+      <div v-if="loading && !hasStreamingMessage" class="message-wrapper ai">
         <div class="message-avatar">
           <span>🤖</span>
         </div>
@@ -140,6 +149,13 @@
           @keydown="handleKeyDown"
           class="message-input"
         />
+        <button
+          v-if="loading"
+          class="pause-button"
+          @click="emit('pause-stream')"
+        >
+          ❚❚
+        </button>
         <button
           class="send-button"
           :disabled="disabled || loading || !inputMessage.trim()"
@@ -175,6 +191,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'send-message': [content: string]
   'update:active-kb-ids': [ids: string[]]
+  'pause-stream': []
 }>()
 
 const kbSelectorVisible = ref(false)
@@ -204,6 +221,17 @@ const addKb = () => {
   }
 }
 
+// Check if there's a streaming AI message (empty or partial content while loading)
+const hasStreamingMessage = computed(() => {
+  if (!props.loading) return false
+  const lastMessage = props.messages[props.messages.length - 1]
+  return lastMessage && lastMessage.type === 'ai'
+})
+
+const lastMessageId = computed(() => {
+  return props.messages[props.messages.length - 1]?.id || ''
+})
+
 const inputMessage = ref('')
 const messagesContainer = ref<HTMLElement>()
 const expandedSources = ref(new Set<string>())
@@ -221,8 +249,18 @@ const md = new MarkdownIt({
   linkify: true
 })
 
+const normalizeMarkdown = (content: string) => {
+  return content.replace(/^(#{1,6})([^#\s])/gm, '$1 $2')
+}
+
 const renderMarkdown = (content: string) => {
-  return md.render(content)
+  return md.render(normalizeMarkdown(content))
+}
+
+const shouldShowInlineLoading = (message: Message) => {
+  return props.loading
+    && message.type === 'ai'
+    && message.id === lastMessageId.value
 }
 
 const toggleSources = (messageId: string) => {
@@ -261,6 +299,10 @@ watch(() => props.messages.length, () => {
 })
 
 watch(() => props.loading, () => {
+  scrollToBottom()
+})
+
+watch(() => props.messages[props.messages.length - 1]?.content, () => {
   scrollToBottom()
 })
 </script>
@@ -401,6 +443,7 @@ watch(() => props.loading, () => {
   flex-shrink: 0;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
+  position: relative;
 }
 
 .message-wrapper.ai .message-avatar {
@@ -445,14 +488,70 @@ watch(() => props.loading, () => {
 .ai-text {
   color: var(--text-primary);
   font-family: var(--font-body);
+  line-height: 1.7;
+}
+
+.typing-bubble {
+  position: absolute;
+  right: -10px;
+  bottom: -8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  z-index: 2;
+}
+
+.typing-bubble .dot {
+  width: 4px;
+  height: 4px;
 }
 
 .ai-text :deep(p) {
   margin: 0 0 12px 0;
+  line-height: 1.7;
 }
 
 .ai-text :deep(p:last-child) {
   margin-bottom: 0;
+}
+
+.ai-text :deep(br) {
+  display: block;
+  content: "";
+  margin-top: 8px;
+}
+
+.ai-text :deep(ul),
+.ai-text :deep(ol) {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.ai-text :deep(li) {
+  margin: 4px 0;
+  line-height: 1.6;
+}
+
+.ai-text :deep(h1),
+.ai-text :deep(h2),
+.ai-text :deep(h3),
+.ai-text :deep(h4) {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.ai-text :deep(blockquote) {
+  border-left: 4px solid var(--accent-primary);
+  margin: 12px 0;
+  padding: 8px 16px;
+  background: var(--bg-hover);
+  border-radius: 4px;
 }
 
 .ai-text :deep(code) {
@@ -460,7 +559,7 @@ watch(() => props.loading, () => {
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 14px;
-  font-family: 'Monaco', 'Menlo', monospace;
+  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
   color: var(--text-code);
 }
 
@@ -470,12 +569,14 @@ watch(() => props.loading, () => {
   border-radius: 8px;
   overflow-x: auto;
   margin: 12px 0;
+  white-space: pre;
 }
 
 .ai-text :deep(pre code) {
   background: none;
   padding: 0;
   color: var(--text-code);
+  white-space: pre;
 }
 
 .sources-section {
@@ -667,6 +768,29 @@ watch(() => props.loading, () => {
   justify-content: center;
   transition: all 0.2s ease;
   flex-shrink: 0;
+}
+
+.pause-button {
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.pause-button:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: rgba(var(--accent-rgb), 0.05);
 }
 
 .send-button:hover:not(:disabled) {
