@@ -22,7 +22,6 @@
         :knowledge-base-id="selectedKnowledgeBase"
         :files="files"
         @file-uploaded="handleFileUploaded"
-        @parse-file="handleParseFile"
       />
     </div>
   </div>
@@ -142,44 +141,7 @@ const handleFileUploaded = async () => {
   }
 }
 
-const handleParseFile = async (fileId: string) => {
-  try {
-    await knowledgeApi.parseFile(fileId)
-    ElMessage.success('解析任务已提交')
-
-    // 轮询检查解析状态
-    const checkStatus = setInterval(async () => {
-      if (!selectedKnowledgeBase.value) {
-        clearInterval(checkStatus)
-        return
-      }
-
-      try {
-        // 由于后端没有单独查询文件状态的接口，这里通过刷新列表来实现
-        // Since backend API is limited, re-fetch list is the only way
-        await loadFiles(selectedKnowledgeBase.value)
-        
-        const currentFile = files.value.find(f => f.id === fileId)
-        if (currentFile) {
-          if (currentFile.status === 'ready') {
-            clearInterval(checkStatus)
-            ElMessage.success('文件解析完成')
-          } else if (currentFile.status === 'failed') {
-            clearInterval(checkStatus)
-            ElMessage.error('文件解析失败')
-          }
-        } else {
-           // File not found?
-           clearInterval(checkStatus)
-        }
-      } catch (error) {
-        clearInterval(checkStatus) 
-      }
-    }, 2000)
-  } catch (error) {
-    console.error('解析文件失败:', error)
-  }
-}
+// handleParseFile removed as parsing is automatic
 
 watch(selectedKnowledgeBase, (newVal) => {
   if (newVal) {

@@ -7,18 +7,9 @@
     <div class="panel-content">
       <!-- 文件上传区 -->
       <div class="upload-section">
-        <el-upload
-          ref="uploadRef"
-          :http-request="customUpload"
-          :before-upload="handleBeforeUpload"
-          :on-success="handleUploadSuccess"
-          :on-error="handleUploadError"
-          :show-file-list="false"
-          :disabled="!knowledgeBaseId"
-          drag
-          multiple
-          class="upload-dragger"
-        >
+        <el-upload ref="uploadRef" :http-request="customUpload" :before-upload="handleBeforeUpload"
+          :on-success="handleUploadSuccess" :on-error="handleUploadError" :show-file-list="false"
+          :disabled="!knowledgeBaseId" drag multiple class="upload-dragger">
           <div class="upload-content">
             <div class="upload-icon">📁</div>
             <div class="upload-text">
@@ -46,12 +37,7 @@
         </div>
 
         <div v-else class="files-list">
-          <div
-            v-for="file in files"
-            :key="file.id"
-            class="file-item"
-            :class="file.status"
-          >
+          <div v-for="file in files" :key="file.id" class="file-item" :class="file.status">
             <div class="file-icon">
               <span v-if="file.status === 'ready'">✅</span>
               <span v-else-if="file.status === 'parsing'">⏳</span>
@@ -68,34 +54,9 @@
             </div>
 
             <div class="file-status">
-              <el-tag
-                :type="getStatusType(file.status)"
-                size="small"
-                class="status-tag"
-              >
+              <el-tag :type="getStatusType(file.status)" size="small" class="status-tag">
                 {{ getStatusText(file.status) }}
               </el-tag>
-            </div>
-
-            <div class="file-actions">
-              <el-button
-                v-if="file.status === 'uploaded' || file.status === 'failed'"
-                type="primary"
-                size="small"
-                @click="handleParse(file.id)"
-                :loading="parsingFiles.has(file.id)"
-              >
-                {{ file.status === 'failed' ? '重新解析' : '解析' }}
-              </el-button>
-
-              <el-button
-                v-if="file.status === 'parsing'"
-                size="small"
-                loading
-                disabled
-              >
-                解析中
-              </el-button>
             </div>
           </div>
         </div>
@@ -116,31 +77,28 @@ const props = defineProps<{
   files: FileItem[]
 }>()
 
+
 const emit = defineEmits<{
   'file-uploaded': []
-  'parse-file': [fileId: string]
 }>()
 
 const uploadRef = ref()
-const parsingFiles = ref(new Set<string>())
+// parsingFiles removed
 
 const customUpload = async (options: any) => {
   try {
     await knowledgeApi.uploadFile(props.knowledgeBaseId, options.file)
+    ElMessage.success('文件上传成功')
     options.onSuccess()
-  } catch (error) {
-    options.onError(error)
+    // Trigger refresh immediately as parsing is now automatic
+    emit('file-uploaded')
+  } catch (error: any) {
+    // Pass the real error message to onError
+    options.onError(error) // This triggers handleUploadError
   }
 }
 
 const handleBeforeUpload = (file: File) => {
-  const allowedTypes = [
-    'application/pdf',
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'text/plain',
-    'text/markdown'
-  ]
-
   const allowedExtensions = ['.pdf', '.docx', '.txt', '.md']
   const fileExtension = file.name.substring(file.name.lastIndexOf('.')).toLowerCase()
 
@@ -158,24 +116,29 @@ const handleBeforeUpload = (file: File) => {
   return true
 }
 
+// ...
+
 const handleUploadSuccess = () => {
-  ElMessage.success('文件上传成功')
-  emit('file-uploaded')
+  // ElMessage.success('文件上传成功') // Moved to customUpload to avoid potential duplicate (if any) and better control
 }
 
-const handleUploadError = () => {
-  ElMessage.error('文件上传失败')
+const handleUploadError = (error: any) => {
+  // Try to extract useful message. 
+  // Error from axios interceptor might be the error object itself.
+  // Element Plus wraps it?
+  // Usually options.onError(err) passes err to this hook.
+
+  // Checking if it's a "File exists" error
+  const msg = error.response?.data?.message || error.message || '文件上传失败'
+
+  if (msg.includes('该文件已存在') || msg.includes('请勿重复上传') || msg.includes('already exists')) {
+    ElMessage.warning(msg)
+  } else {
+    ElMessage.error(msg)
+  }
 }
 
-const handleParse = (fileId: string) => {
-  parsingFiles.value.add(fileId)
-  emit('parse-file', fileId)
-
-  // 清理标记
-  setTimeout(() => {
-    parsingFiles.value.delete(fileId)
-  }, 60000)
-}
+// handleParse removed as parsing is automatic
 
 const getStatusType = (status: FileItem['status']) => {
   const typeMap = {
@@ -387,6 +350,7 @@ const getStatusText = (status: FileItem['status']) => {
     opacity: 0;
     transform: translateX(20px);
   }
+
   to {
     opacity: 1;
     transform: translateX(0);

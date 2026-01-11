@@ -17,7 +17,11 @@ interface ApiResponse<T> {
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
-    ElMessage.error(error.response?.data?.message || '请求失败')
+    // metadata is often nested in error.config
+    // Allow skipping global error message
+    if (!error.config?.skipErrorHandler) {
+      ElMessage.error(error.response?.data?.message || '请求失败')
+    }
     return Promise.reject(error)
   }
 )
@@ -68,8 +72,9 @@ export const knowledgeApi = {
       status: string
     }
     const res = await api.post<any, ApiResponse<UploadResp>>('/docs/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
+      headers: { 'Content-Type': 'multipart/form-data' },
+      skipErrorHandler: true
+    } as any)
     const doc = res.data
     return {
       id: String(doc.docId),
