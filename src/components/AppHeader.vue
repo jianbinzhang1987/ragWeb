@@ -35,13 +35,32 @@
             </div>
           </el-option>
         </el-select>
+        
+        <el-button 
+          circle 
+          plain 
+          @click="managerVisible = true"
+          title="管理知识库"
+        >
+          <el-icon><Setting /></el-icon>
+        </el-button>
       </div>
     </div>
   </header>
+
+  <KbManager 
+    v-model="managerVisible"
+    @refresh="$emit('refresh')"
+  />
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue' // Add missing ref import
 import type { KnowledgeBase } from '@/types'
+import { Setting } from '@element-plus/icons-vue'
+import KbManager from './KbManager.vue'
+
+const managerVisible = ref(false)
 
 defineProps<{
   knowledgeBases: KnowledgeBase[]
@@ -50,6 +69,7 @@ defineProps<{
 
 defineEmits<{
   'kb-change': [kbId: string]
+  'refresh': []
 }>()
 </script>
 

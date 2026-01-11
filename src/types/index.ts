@@ -27,7 +27,8 @@ export interface Message {
 }
 
 export interface ChatRequest {
-  knowledgeBaseId: string
+  knowledgeBaseId?: string // Deprecated, but keep for backward compat or easy mapping
+  knowledgeBaseIds?: string[] // New field
   message: string
 }
 

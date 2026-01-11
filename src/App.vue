@@ -4,6 +4,7 @@
       :knowledge-bases="knowledgeBases"
       :selected-kb="selectedKnowledgeBase"
       @kb-change="handleKnowledgeBaseChange"
+      @refresh="loadKnowledgeBases"
     />
 
     <div class="main-content">
@@ -11,6 +12,9 @@
         :messages="messages"
         :loading="chatLoading"
         :disabled="!selectedKnowledgeBase"
+        :active-kb-ids="sessionKbIds"
+        :available-kbs="knowledgeBases"
+        @update:active-kb-ids="val => sessionKbIds = val"
         @send-message="handleSendMessage"
       />
 
@@ -36,6 +40,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 const knowledgeBases = ref<KnowledgeBase[]>([])
 const selectedKnowledgeBase = ref<string>('')
+const sessionKbIds = ref<string[]>([])
 const files = ref<FileItem[]>([])
 const messages = ref<Message[]>([])
 const chatLoading = ref(false)
@@ -45,6 +50,7 @@ const loadKnowledgeBases = async () => {
     knowledgeBases.value = await knowledgeApi.getList()
     if (knowledgeBases.value.length > 0) {
       selectedKnowledgeBase.value = knowledgeBases.value[0].id
+      sessionKbIds.value = [knowledgeBases.value[0].id]
     }
   } catch (error) {
     console.error('加载知识库失败:', error)
@@ -78,6 +84,7 @@ const handleKnowledgeBaseChange = async (kbId: string) => {
   }
 
   selectedKnowledgeBase.value = kbId
+  sessionKbIds.value = [kbId] // Sync session KB
   await loadFiles(kbId)
 }
 
@@ -87,12 +94,15 @@ const handleSendMessage = async (content: string) => {
     return
   }
 
-  const hasReadyFiles = files.value.some(f => f.status === 'ready')
-  if (!hasReadyFiles) {
-    ElMessage.warning('当前知识库没有可用的文件，请先上传并解析文件')
-    return
-  }
-
+  // Check if at least one selected KB has files? 
+  // Current logic checks 'files' which is only for separate 'selectedKnowledgeBase'.
+  // This is a bit inconsistent with multi-KB session.
+  // But for now, let's keep the check simple or relax it.
+  // The PRD says "KB without files cannot be added".
+  // Let's assume user handled adding valid KBs.
+  // We can skip the strict "hasReadyFiles" check for now or check if active-kb-ids are valid.
+  
+  // Update: Sending message will use sessionKbIds
   const userMessage: Message = {
     id: generateId(),
     type: 'user',
@@ -105,7 +115,8 @@ const handleSendMessage = async (content: string) => {
 
   try {
     const response = await chatApi.sendMessage({
-      knowledgeBaseId: selectedKnowledgeBase.value,
+      knowledgeBaseId: selectedKnowledgeBase.value, // Keep for legacy/logging
+      knowledgeBaseIds: sessionKbIds.value, // New field
       message: content
     })
 

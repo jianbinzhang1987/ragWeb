@@ -45,6 +45,18 @@ export const knowledgeApi = {
     }))
   },
 
+  createKb: async (name: string): Promise<void> => {
+    await api.post<any, ApiResponse<void>>('/docs/kb', null, {
+      params: { name }
+    })
+  },
+
+  deleteKb: async (name: string): Promise<void> => {
+    await api.delete<any, ApiResponse<void>>('/docs/kb', {
+      params: { name }
+    })
+  },
+
   uploadFile: async (knowledgeBaseId: string, file: File): Promise<FileItem> => {
     const formData = new FormData()
     formData.append('file', file)
@@ -115,7 +127,8 @@ interface QueryResp {
 export const chatApi = {
   sendMessage: async (request: ChatRequest): Promise<ChatResponse> => {
     const payload = {
-      collection: request.knowledgeBaseId,
+      collection: request.knowledgeBaseId || (request.knowledgeBaseIds?.[0] || 'default'),
+      collectionIds: request.knowledgeBaseIds,
       question: request.message
     }
     const res = await api.post<any, ApiResponse<QueryResp>>('/chat/query', payload)

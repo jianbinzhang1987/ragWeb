@@ -1,5 +1,55 @@
 <template>
   <div class="chat-area">
+    <!-- Knowledge Base Tags Header -->
+    <div class="chat-header">
+      <div class="kb-tags-label">当前会话知识库：</div>
+      <div class="kb-tags-list">
+        <el-tag
+          v-for="kb in activeKbs"
+          :key="kb.id"
+          closable
+          effect="light"
+          round
+          class="kb-tag"
+          @close="removeKb(kb.id)"
+        >
+          {{ kb.name }}
+        </el-tag>
+
+        <el-popover
+          v-if="unselectedKbs.length > 0"
+          v-model:visible="kbSelectorVisible"
+          placement="bottom-start"
+          :width="200"
+          trigger="click"
+        >
+          <template #reference>
+            <el-button class="add-kb-btn" circle size="small">
+              <span class="plus-icon">+</span>
+            </el-button>
+          </template>
+          <div class="kb-selector-popover">
+            <div class="kb-selector-title">添加知识库</div>
+            <el-select
+              v-model="selectedKbToAdd"
+              placeholder="选择知识库"
+              filterable
+              size="small"
+              class="kb-add-select"
+              @change="addKb"
+            >
+              <el-option
+                v-for="kb in unselectedKbs"
+                :key="kb.id"
+                :label="kb.name"
+                :value="kb.id"
+              />
+            </el-select>
+          </div>
+        </el-popover>
+      </div>
+    </div>
+
     <div class="messages-container" ref="messagesContainer">
       <div v-if="messages.length === 0" class="empty-state">
         <div class="empty-icon">💬</div>
@@ -108,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, computed } from 'vue'
 import type { Message } from '@/types'
 import { formatTime } from '@/utils/format'
 import MarkdownIt from 'markdown-it'
@@ -118,11 +168,41 @@ const props = defineProps<{
   messages: Message[]
   loading: boolean
   disabled: boolean
+  activeKbIds: string[]
+  availableKbs: any[]
 }>()
 
 const emit = defineEmits<{
   'send-message': [content: string]
+  'update:active-kb-ids': [ids: string[]]
 }>()
+
+const kbSelectorVisible = ref(false)
+const selectedKbToAdd = ref('')
+
+const activeKbs = computed(() => {
+  return props.activeKbIds.map(id => 
+    props.availableKbs.find(k => k.id === id) || { id, name: id }
+  )
+})
+
+const unselectedKbs = computed(() => {
+  return props.availableKbs.filter(k => !props.activeKbIds.includes(k.id))
+})
+
+const removeKb = (id: string) => {
+  const newIds = props.activeKbIds.filter(kbId => kbId !== id)
+  emit('update:active-kb-ids', newIds)
+}
+
+const addKb = () => {
+  if (selectedKbToAdd.value) {
+    const newIds = [...props.activeKbIds, selectedKbToAdd.value]
+    emit('update:active-kb-ids', newIds)
+    selectedKbToAdd.value = ''
+    kbSelectorVisible.value = false
+  }
+}
 
 const inputMessage = ref('')
 const messagesContainer = ref<HTMLElement>()
@@ -192,6 +272,67 @@ watch(() => props.loading, () => {
   flex-direction: column;
   background: var(--bg-primary);
   overflow: hidden;
+}
+
+.chat-header {
+  padding: 12px 24px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.kb-tags-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.kb-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  flex: 1;
+}
+
+.kb-tag {
+  border-color: var(--accent-primary) !important;
+  color: var(--accent-primary) !important;
+  background: rgba(var(--accent-rgb), 0.08) !important;
+}
+
+.add-kb-btn {
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 1px dashed var(--border-color);
+  color: var(--text-secondary);
+  transition: all 0.2s;
+}
+
+.add-kb-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: rgba(var(--accent-rgb), 0.05);
+}
+
+.kb-selector-popover {
+  padding: 8px;
+}
+
+.kb-selector-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+
+.kb-add-select {
+  width: 100%;
 }
 
 .messages-container {
