@@ -36,32 +36,48 @@
           <p>暂无文件</p>
         </div>
 
-        <div v-else class="files-list">
-          <div v-for="file in files" :key="file.id" class="file-item" :class="file.status">
-            <div class="file-icon">
-              <span v-if="file.status === 'ready'">✅</span>
-              <span v-else-if="file.status === 'parsing'">⏳</span>
-              <span v-else-if="file.status === 'failed'">❌</span>
-              <span v-else>📄</span>
-            </div>
+        <template v-else>
+          <div class="files-list">
+            <div v-for="file in files" :key="file.id" class="file-item clickable" :class="file.status"
+              @click="handlePreview(file)">
+              <div class="file-icon">
+                <span v-if="file.status === 'ready'">✅</span>
+                <span v-else-if="file.status === 'parsing'">⏳</span>
+                <span v-else-if="file.status === 'failed'">❌</span>
+                <span v-else>📄</span>
+              </div>
 
-            <div class="file-info">
-              <div class="file-name" :title="file.name">{{ file.name }}</div>
-              <div class="file-meta">
-                <span class="file-size">{{ formatFileSize(file.size) }}</span>
-                <span class="file-time">{{ formatTime(file.uploadTime) }}</span>
+              <div class="file-info">
+                <div class="file-name" :title="file.name">{{ file.name }}</div>
+                <div class="file-meta">
+                  <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                  <span class="file-time">{{ formatTime(file.uploadTime) }}</span>
+                </div>
+              </div>
+
+              <div class="file-status">
+                <el-tag :type="getStatusType(file.status)" size="small" class="status-tag">
+                  {{ getStatusText(file.status) }}
+                </el-tag>
+              </div>
+
+              <div class="file-actions" v-if="file.status === 'failed'" @click.stop>
+                <el-button size="small" type="warning" @click="handleReparse(file)">
+                  重新解析
+                </el-button>
               </div>
             </div>
-
-            <div class="file-status">
-              <el-tag :type="getStatusType(file.status)" size="small" class="status-tag">
-                {{ getStatusText(file.status) }}
-              </el-tag>
-            </div>
           </div>
-        </div>
+
+          <div class="pagination-footer" v-if="total !== undefined">
+            <el-pagination size="small" background layout="prev, pager, next" :total="total" :page-size="pageSize || 10"
+              :current-page="currentPage || 1" @current-change="(val: number) => emit('page-change', val)"
+              hide-on-single-page />
+          </div>
+        </template>
       </div>
     </div>
+    <FilePreview v-model="previewVisible" :file-id="previewFileId" :file-name="previewFileName" />
   </div>
 </template>
 
@@ -71,15 +87,20 @@ import type { FileItem } from '@/types'
 import { formatFileSize, formatTime } from '@/utils/format'
 import { knowledgeApi } from '@/api'
 import { ElMessage } from 'element-plus'
+import FilePreview from './FilePreview.vue'
 
 const props = defineProps<{
   knowledgeBaseId: string
   files: FileItem[]
+  total?: number
+  currentPage?: number
+  pageSize?: number
 }>()
 
 
 const emit = defineEmits<{
   'file-uploaded': []
+  'page-change': [page: number]
 }>()
 
 const uploadRef = ref()
@@ -95,6 +116,27 @@ const customUpload = async (options: any) => {
   } catch (error: any) {
     // Pass the real error message to onError
     options.onError(error) // This triggers handleUploadError
+  }
+}
+
+const previewVisible = ref(false)
+const previewFileId = ref('')
+const previewFileName = ref('')
+
+const handlePreview = (file: FileItem) => {
+  previewFileId.value = file.id
+  previewFileName.value = file.name
+  previewVisible.value = true
+}
+
+const handleReparse = async (file: FileItem) => {
+  try {
+    ElMessage.info('正在重新解析...')
+    await knowledgeApi.parseFile(file.id)
+    ElMessage.success('解析成功')
+    emit('file-uploaded') // Refresh file list
+  } catch (error: any) {
+    ElMessage.error('解析失败: ' + (error.response?.data?.message || error.message || '未知错误'))
   }
 }
 
@@ -343,6 +385,7 @@ const getStatusText = (status: FileItem['status']) => {
   gap: 12px;
   transition: all 0.2s ease;
   animation: fileSlideIn 0.3s ease;
+  cursor: pointer;
 }
 
 @keyframes fileSlideIn {

@@ -85,12 +85,27 @@ export const knowledgeApi = {
     }
   },
 
-  getFiles: async (knowledgeBaseId: string): Promise<FileItem[]> => {
-    const res = await api.get<any, ApiResponse<BackendDocument[]>>('/docs/list', {
-      params: { collection: knowledgeBaseId }
+  getFiles: async (knowledgeBaseId: string, page = 1, size = 10): Promise<{ list: FileItem[], total: number }> => {
+    interface PageResp<T> {
+      total: number
+      page: number
+      size: number
+      list: T[]
+    }
+
+    const res = await api.get<any, ApiResponse<PageResp<BackendDocument>>>('/docs/list', {
+      params: {
+        collection: knowledgeBaseId,
+        page,
+        size
+      }
     })
-    const docs = res.data || []
-    return docs.map((doc) => {
+
+    // Data might be PageResp object
+    const pageData = res.data
+    const docs = pageData.list || []
+
+    const list = docs.map((doc) => {
       let status: FileItem['status'] = 'uploaded'
       if (doc.status === 'INDEXED') status = 'ready'
       if (doc.status === 'FAILED') status = 'failed'
@@ -103,6 +118,11 @@ export const knowledgeApi = {
         uploadTime: doc.createdAt
       }
     })
+
+    return {
+      list,
+      total: pageData.total
+    }
   },
 
   parseFile: async (fileId: string): Promise<void> => {
@@ -113,6 +133,19 @@ export const knowledgeApi = {
     // Dummy returning check to avoid lint error 'fileId declared but never read'
     console.log('Checking status for', fileId)
     return Promise.reject('Not implemented, use getFiles list refresh')
+  },
+
+  getFilePreviewUrl: (fileId: string): string => {
+    return `/api/v1/docs/${fileId}/preview`
+  },
+
+  getFileContent: async (fileId: string): Promise<Blob> => {
+    // We need the raw response or data as blob. 
+    // The interceptor returns response.data
+    const res = await api.get(`/docs/${fileId}/preview`, {
+      responseType: 'blob',
+    })
+    return res as unknown as Blob
   }
 }
 

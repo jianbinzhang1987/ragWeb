@@ -4,9 +4,9 @@
       <div class="logo-section">
         <div class="logo-icon">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
+            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
           </svg>
         </div>
         <h1 class="app-title">RAG Knowledge Hub</h1>
@@ -16,42 +16,26 @@
     <div class="header-right">
       <div class="kb-selector-wrapper">
         <label class="kb-label">知识库</label>
-        <el-select
-          :model-value="selectedKb"
-          @update:model-value="$emit('kb-change', $event)"
-          placeholder="选择知识库"
-          class="kb-select"
-          size="large"
-        >
-          <el-option
-            v-for="kb in knowledgeBases"
-            :key="kb.id"
-            :label="kb.name"
-            :value="kb.id"
-          >
+        <el-select :model-value="selectedKb" @update:model-value="$emit('kb-change', $event)" placeholder="选择知识库"
+          class="kb-select" size="large">
+          <el-option v-for="kb in knowledgeBases" :key="kb.id" :label="kb.name" :value="kb.id">
             <div class="kb-option">
               <span class="kb-option-icon">📚</span>
               <span>{{ kb.name }}</span>
             </div>
           </el-option>
         </el-select>
-        
-        <el-button 
-          circle 
-          plain 
-          @click="managerVisible = true"
-          title="管理知识库"
-        >
-          <el-icon><Setting /></el-icon>
+
+        <el-button circle plain @click="managerVisible = true" title="管理知识库">
+          <el-icon>
+            <Setting />
+          </el-icon>
         </el-button>
       </div>
     </div>
   </header>
 
-  <KbManager 
-    v-model="managerVisible"
-    @refresh="$emit('refresh')"
-  />
+  <KbManager v-model="managerVisible" @refresh="$emit('refresh')" />
 </template>
 
 <script setup lang="ts">
@@ -140,6 +124,7 @@ defineEmits<{
   font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.01em;
+  white-space: nowrap;
 }
 
 .kb-select {

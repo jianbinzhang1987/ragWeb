@@ -1,28 +1,16 @@
 <template>
   <div class="app-container">
-    <AppHeader
-      :knowledge-bases="knowledgeBases"
-      :selected-kb="selectedKnowledgeBase"
-      @kb-change="handleKnowledgeBaseChange"
-      @refresh="loadKnowledgeBases"
-    />
+    <AppHeader :knowledge-bases="knowledgeBases" :selected-kb="selectedKnowledgeBase"
+      @kb-change="handleKnowledgeBaseChange" @refresh="loadKnowledgeBases" />
 
     <div class="main-content">
-      <ChatArea
-        :messages="messages"
-        :loading="chatLoading"
-        :disabled="!selectedKnowledgeBase"
-        :active-kb-ids="sessionKbIds"
-        :available-kbs="knowledgeBases"
-        @update:active-kb-ids="val => sessionKbIds = val"
-        @send-message="handleSendMessage"
-      />
+      <ChatArea :messages="messages" :loading="chatLoading" :disabled="!selectedKnowledgeBase"
+        :active-kb-ids="sessionKbIds" :available-kbs="knowledgeBases" @update:active-kb-ids="val => sessionKbIds = val"
+        @send-message="handleSendMessage" />
 
-      <KnowledgePanel
-        :knowledge-base-id="selectedKnowledgeBase"
-        :files="files"
-        @file-uploaded="handleFileUploaded"
-      />
+      <KnowledgePanel :knowledge-base-id="selectedKnowledgeBase" :files="files" :total="paging.total"
+        :current-page="paging.page" :page-size="paging.size" @file-uploaded="handleFileUploaded"
+        @page-change="handlePageChange" />
     </div>
   </div>
 </template>
@@ -56,11 +44,26 @@ const loadKnowledgeBases = async () => {
   }
 }
 
+const paging = ref({
+  page: 1,
+  size: 5,
+  total: 0
+})
+
 const loadFiles = async (kbId: string) => {
   try {
-    files.value = await knowledgeApi.getFiles(kbId)
+    const res = await knowledgeApi.getFiles(kbId, paging.value.page, paging.value.size)
+    files.value = res.list
+    paging.value.total = res.total
   } catch (error) {
     console.error('加载文件列表失败:', error)
+  }
+}
+
+const handlePageChange = (page: number) => {
+  paging.value.page = page
+  if (selectedKnowledgeBase.value) {
+    loadFiles(selectedKnowledgeBase.value)
   }
 }
 
@@ -100,7 +103,7 @@ const handleSendMessage = async (content: string) => {
   // The PRD says "KB without files cannot be added".
   // Let's assume user handled adding valid KBs.
   // We can skip the strict "hasReadyFiles" check for now or check if active-kb-ids are valid.
-  
+
   // Update: Sending message will use sessionKbIds
   const userMessage: Message = {
     id: generateId(),
