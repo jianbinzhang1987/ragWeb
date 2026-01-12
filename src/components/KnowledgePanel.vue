@@ -14,7 +14,7 @@
             <div class="upload-icon">📁</div>
             <div class="upload-text">
               <p class="upload-title">拖拽文件至此或点击上传</p>
-              <p class="upload-hint">支持 PDF、DOCX、TXT、MD 等格式</p>
+              <p class="upload-hint">支持 PDF、DOCX、TXT、MD (最大 {{ maxFileSizeStr }})</p>
             </div>
           </div>
         </el-upload>
@@ -82,10 +82,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import type { FileItem } from '@/types'
 import { formatFileSize, formatTime } from '@/utils/format'
-import { knowledgeApi } from '@/api'
+import { knowledgeApi, systemApi } from '@/api'
 import { ElMessage } from 'element-plus'
 import FilePreview from './FilePreview.vue'
 
@@ -104,7 +104,34 @@ const emit = defineEmits<{
 }>()
 
 const uploadRef = ref()
-// parsingFiles removed
+const maxFileSizeStr = ref('10MB')
+const maxFileSizeBytes = ref(10 * 1024 * 1024)
+
+// Fetch system config on mount
+
+onMounted(async () => {
+  try {
+    const config = await systemApi.getConfig()
+    if (config.maxFileSize) {
+      maxFileSizeStr.value = config.maxFileSize
+      // Simple parser for 10MB, 50MB, etc.
+      const match = config.maxFileSize.match(/^(\d+)(MB|KB|GB|B)$/i)
+      if (match) {
+        const value = parseInt(match[1])
+        const unit = match[2].toUpperCase()
+        const unitMap: Record<string, number> = {
+          'B': 1,
+          'KB': 1024,
+          'MB': 1024 * 1024,
+          'GB': 1024 * 1024 * 1024
+        }
+        maxFileSizeBytes.value = value * unitMap[unit]
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch system config', error)
+  }
+})
 
 const customUpload = async (options: any) => {
   try {
@@ -149,9 +176,8 @@ const handleBeforeUpload = (file: File) => {
     return false
   }
 
-  const maxSize = 50 * 1024 * 1024 // 50MB
-  if (file.size > maxSize) {
-    ElMessage.error('文件大小不能超过 50MB')
+  if (file.size > maxFileSizeBytes.value) {
+    ElMessage.error(`文件大小不能超过 ${maxFileSizeStr.value}`)
     return false
   }
 

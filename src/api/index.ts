@@ -297,3 +297,10 @@ export const chatApi = {
     }
   }
 }
+
+export const systemApi = {
+  getConfig: async (): Promise<{ maxFileSize: string }> => {
+    const res = await api.get<any, ApiResponse<{ maxFileSize: string }>>('/system/config')
+    return res.data
+  }
+}
