@@ -104,6 +104,9 @@ rag-chat-web/
 ### 聊天问答
 - `POST /api/chat` - 发送消息并获取 AI 回复
 
+### 系统配置
+- `GET /api/v1/system/config` - 获取系统配置（如最大文件限制）
+
 ## 🎯 核心功能
 
 ### 1. 知识库选择
@@ -115,7 +118,7 @@ rag-chat-web/
 - 支持拖拽上传和点击选择
 - 支持多文件同时上传
 - 文件格式验证（PDF、DOCX、TXT、MD）
-- 文件大小限制（50MB）
+- 自动同步后端设置的文件大小限制（默认 10MB）
 - 上传进度反馈
 
 ### 3. 文件管理
@@ -214,7 +217,7 @@ Vite 配置了代理，将 `/api` 请求转发到后端：
 ```typescript
 proxy: {
   '/api': {
-    target: 'http://localhost:8080',
+    target: 'http://localhost:8081',
     changeOrigin: true
   }
 }
